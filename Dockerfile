@@ -15,4 +15,4 @@ COPY . .
 RUN go build -o main .
 
 # Definir o comando de entrada para o contêiner
-CMD ["./main"]
+CMD ["./main"]

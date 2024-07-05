@@ -27,5 +27,5 @@ func main() {
 		dbPort,
 		dbName)
 
-	a.Run(":8888")
+	a.Run(":8080")
 }
