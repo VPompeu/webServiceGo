@@ -17,7 +17,7 @@ type User struct {
 	City     string `json:"city"`
 	State    string `json:"state"`
 	Country  string `json:"country"`
-	License  string `json:"license"`
+	License  bool   `json:"license"`
 }
 
 func (u *User) GetUser(db *sql.DB) error {
@@ -54,7 +54,7 @@ func (u *User) CreateUser(db *sql.DB) error {
 func (u *User) Login(db *sql.DB) (bool, error) {
 	var userHash string
 
-	err := db.QueryRow("SELECT password FROM users WHERE email = $1", u.Email).Scan(&userHash)
+	err := db.QueryRow("SELECT id, password FROM users WHERE email = $1", u.Email).Scan(&u.ID, &userHash)
 
 	if err == sql.ErrNoRows {
 		return false, fmt.Errorf("usuário não encontrado")
@@ -72,7 +72,7 @@ func (u *User) Login(db *sql.DB) (bool, error) {
 
 func GetUsers(db *sql.DB, start, count int) ([]User, error) {
 	rows, err := db.Query(
-		"SELECT id, name, email, phone, birthday, city, state, country FROM users LIMIT $1 OFFSET $2",
+		"SELECT id, name, email, phone, birthday, city, state, country, license FROM users LIMIT $1 OFFSET $2",
 		count, start)
 
 	if err != nil {

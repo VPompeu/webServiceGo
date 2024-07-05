@@ -26,6 +26,7 @@ type App struct {
 
 type Claims struct {
 	Email string `json:"email"`
+	ID    int    `json:"id"`
 	jwt.RegisteredClaims
 }
 
@@ -40,7 +41,26 @@ func (a *App) Initialize(user, password, dbname string) {
 	}
 
 	a.Router = mux.NewRouter()
+	a.Router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Defina o cabeçalho Access-Control-Allow-Origin para permitir solicitações de qualquer origem
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			// Defina outros cabeçalhos aqui, se necessário
+			// w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			// w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+			// Continue com o próximo handler
+			next.ServeHTTP(w, r)
+		})
+	})
 	a.initializeRoutes()
+}
+
+func (a *App) optionsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000") // Substitua pelo seu domínio de origem
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.WriteHeader(http.StatusOK)
 }
 
 func respondWithError(w http.ResponseWriter, code int, message string) {
@@ -53,19 +73,6 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	w.Write(response)
-}
-
-func (a *App) healthCheck(w http.ResponseWriter, r *http.Request) {
-	respondWithJSON(w, http.StatusOK, map[string]string{"status": "OK"})
-}
-
-func (a *App) checkDBConnection(w http.ResponseWriter, r *http.Request) {
-	err := a.DB.Ping()
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Database connection failed")
-		return
-	}
-	respondWithJSON(w, http.StatusOK, map[string]string{"status": "Database connection successful"})
 }
 
 func (a *App) getUsers(w http.ResponseWriter, r *http.Request) {
@@ -250,6 +257,7 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 		expirationUnix := jwt.NewNumericDate(expirationTime)
 		claims := &Claims{
 			Email: u.Email,
+			ID:    u.ID,
 			RegisteredClaims: jwt.RegisteredClaims{
 				ExpiresAt: expirationUnix,
 			},
@@ -270,14 +278,12 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) initializeRoutes() {
-	a.Router.HandleFunc("/health", a.healthCheck).Methods("GET")
-	a.Router.HandleFunc("/checkdb", a.checkDBConnection).Methods("GET")
-
 	a.Router.HandleFunc("/users", authenticate(a.getUsers)).Methods("GET")
-	a.Router.HandleFunc("/user/{id:[0-9]+}", a.getUser).Methods("GET")
-	a.Router.HandleFunc("/user", a.createUser).Methods("POST")
-	a.Router.HandleFunc("/user/{id:[0-9]+}", a.updateUser).Methods("PUT")
-	a.Router.HandleFunc("/user/{id:[0-9]+}", a.deleteUser).Methods("DELETE")
+	a.Router.HandleFunc("/user/{id:[0-9]+}", authenticate(a.getUser)).Methods("GET")
+	a.Router.HandleFunc("/user", authenticate(a.createUser)).Methods("POST")
+	a.Router.HandleFunc("/user/{id:[0-9]+}", authenticate(a.updateUser)).Methods("PUT")
+	a.Router.HandleFunc("/user/{id:[0-9]+}", authenticate(a.deleteUser)).Methods("DELETE")
+	a.Router.HandleFunc("/login", a.optionsHandler).Methods(http.MethodOptions)
 	a.Router.HandleFunc("/login", a.login).Methods("POST")
 }
 
