@@ -7,6 +7,7 @@ WORKDIR /
 # Copiar o go.mod e go.sum e baixar as dependências
 COPY go.mod go.sum ./
 RUN go mod download
+EXPOSE 8080
 
 # Copiar o código-fonte da aplicação
 COPY . .
