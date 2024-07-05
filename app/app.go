@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/VPompeu/agenda-astrologica/models"
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
@@ -30,12 +29,12 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-func (a *App) Initialize(user, password, host, port, dbname string) {
+func (a *App) Initialize(user, password, dbname string) {
 	connectionString :=
-		fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8&parseTime=True&loc=Local", user, password, host, port, dbname)
+		fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable", user, password, dbname)
 
 	var err error
-	a.DB, err = sql.Open("mysql", connectionString)
+	a.DB, err = sql.Open("postgres", connectionString)
 	if err != nil {
 		log.Fatal(err)
 	}
