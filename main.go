@@ -13,17 +13,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("Erro ao carregar o arquivo .env: %v", err)
 	}
-	dbUser := os.Getenv("CLOUD_SQL_USER")
-	dbPassword := os.Getenv("CLOUD_SQL_PASSWORD")
-	dbName := os.Getenv("DCLOUD_SQL_DATABASE")
-	dbHost := os.Getenv("CLOUD_SQL_CONNECTION_NAME")
+	dbUser := os.Getenv("DB_USER")
+	dbPassword := os.Getenv("DB_PASSWORD")
+	dbName := os.Getenv("DB_NAME")
+	dbHost := os.Getenv("DB_HOST")
 
 	a := app.App{}
 	a.Initialize(
-		dbHost,
 		dbUser,
 		dbPassword,
-		dbName)
+		dbName,
+		dbHost)
 
 	a.Run(":8080")
 }
