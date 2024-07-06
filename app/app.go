@@ -65,6 +65,15 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Write(response)
 }
 
+func (a *App) checkDBConnection(w http.ResponseWriter, r *http.Request) {
+	err := a.DB.Ping()
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Database connection failed")
+		return
+	}
+	respondWithJSON(w, http.StatusOK, map[string]string{"status": "Database connection successful"})
+}
+
 func (a *App) getUsers(w http.ResponseWriter, r *http.Request) {
 	count, _ := strconv.Atoi(r.FormValue("count"))
 	start, _ := strconv.Atoi(r.FormValue("start"))
@@ -268,6 +277,8 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) initializeRoutes() {
+	a.Router.HandleFunc("/checkdb", a.checkDBConnection).Methods("GET")
+
 	a.Router.HandleFunc("/users", authenticate(a.getUsers)).Methods("GET")
 	a.Router.HandleFunc("/user/{id:[0-9]+}", authenticate(a.getUser)).Methods("GET")
 	a.Router.HandleFunc("/user", authenticate(a.createUser)).Methods("POST")
