@@ -42,8 +42,6 @@ func (a *App) Initialize(user, password, dbname, dbhost string) {
 		log.Fatal(err)
 	}
 
-	defer a.DB.Close()
-
 	a.Router = mux.NewRouter()
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"}, // Substitua pelo seu domínio de origem
@@ -293,6 +291,7 @@ func (a *App) initializeRoutes() {
 
 func (a *App) Run(addr string) {
 	log.Printf("Conectando com banco de dados!")
+	defer a.DB.Close()
 	log.Printf("Iniciando serviço em: %s ", addr)
 	log.Fatal(http.ListenAndServe(addr, a.Handler))
 }
