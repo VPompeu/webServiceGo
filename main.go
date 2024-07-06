@@ -16,12 +16,14 @@ func main() {
 	dbUser := os.Getenv("DB_USER")
 	dbPassword := os.Getenv("DB_PASSWORD")
 	dbName := os.Getenv("DB_NAME")
+	dbHost := os.Getenv("DB_HOST")
 
 	a := app.App{}
 	a.Initialize(
 		dbUser,
 		dbPassword,
-		dbName)
+		dbName,
+		dbHost)
 
 	a.Run(":8080")
 }

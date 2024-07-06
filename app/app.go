@@ -16,12 +16,14 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
+	"github.com/rs/cors"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type App struct {
-	Router *mux.Router
-	DB     *sql.DB
+	Router  *mux.Router
+	DB      *sql.DB
+	Handler http.Handler
 }
 
 type Claims struct {
@@ -30,9 +32,9 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-func (a *App) Initialize(user, password, dbname string) {
+func (a *App) Initialize(user, password, dbname, dbhost string) {
 	connectionString :=
-		fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable", user, password, dbname)
+		fmt.Sprintf("user=%s password=%s dbname=%s dbhost=%s sslmode=disable", user, password, dbname, dbhost)
 
 	var err error
 	a.DB, err = sql.Open("postgres", connectionString)
@@ -41,26 +43,14 @@ func (a *App) Initialize(user, password, dbname string) {
 	}
 
 	a.Router = mux.NewRouter()
-	a.Router.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Defina o cabeçalho Access-Control-Allow-Origin para permitir solicitações de qualquer origem
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			// Defina outros cabeçalhos aqui, se necessário
-			// w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			// w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-			// Continue com o próximo handler
-			next.ServeHTTP(w, r)
-		})
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"}, // Substitua pelo seu domínio de origem
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization"},
+		AllowCredentials: true,
 	})
+	a.Handler = c.Handler(a.Router)
 	a.initializeRoutes()
-}
-
-func (a *App) optionsHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000") // Substitua pelo seu domínio de origem
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-	w.WriteHeader(http.StatusOK)
 }
 
 func respondWithError(w http.ResponseWriter, code int, message string) {
@@ -283,7 +273,6 @@ func (a *App) initializeRoutes() {
 	a.Router.HandleFunc("/user", authenticate(a.createUser)).Methods("POST")
 	a.Router.HandleFunc("/user/{id:[0-9]+}", authenticate(a.updateUser)).Methods("PUT")
 	a.Router.HandleFunc("/user/{id:[0-9]+}", authenticate(a.deleteUser)).Methods("DELETE")
-	a.Router.HandleFunc("/login", a.optionsHandler).Methods(http.MethodOptions)
 	a.Router.HandleFunc("/login", a.login).Methods("POST")
 }
 
@@ -291,5 +280,5 @@ func (a *App) Run(addr string) {
 	log.Printf("Conectando com banco de dados!")
 	defer a.DB.Close()
 	log.Printf("Iniciando serviço em: %s ", addr)
-	log.Fatal(http.ListenAndServe(addr, a.Router))
+	log.Fatal(http.ListenAndServe(addr, a.Handler))
 }
