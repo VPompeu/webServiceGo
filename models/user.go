@@ -20,6 +20,13 @@ type User struct {
 	License  bool   `json:"license"`
 }
 
+type UserNote struct {
+	ID       int    `json:"id"`
+	UserID   int    `json:"user_id"`
+	Note     string `json:"note"`
+	NoteDate string `json:"note_date"`
+}
+
 func (u *User) GetUser(db *sql.DB) error {
 	return db.QueryRow("SELECT name, email, password, phone, birthday, city, state, country, license FROM users WHERE id=$1",
 		u.ID).Scan(&u.Name, &u.Email, &u.Password, &u.Phone, &u.Birthday, &u.City, &u.State, &u.Country, &u.License)
@@ -117,4 +124,18 @@ func GetUsers(db *sql.DB, start, count int) ([]User, error) {
 	}
 
 	return users, nil
+}
+
+func (n *UserNote) AddUserNote(db *sql.DB) error {
+	query := `INSERT INTO user_notes (user_id, note, note_date) VALUES ($1, $2, $3) RETURNING id`
+	err := db.QueryRow(query, n.UserID, n.Note, n.NoteDate).Scan(&n.ID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (n *UserNote) GetUserNoteByDate(db *sql.DB, userID int, noteDate string) error {
+	query := `SELECT id, user_id, note, note_date FROM user_notes WHERE user_id = $1 AND note_date = $2`
+	return db.QueryRow(query, userID, noteDate).Scan(&n.ID, &n.UserID, &n.Note, &n.NoteDate)
 }

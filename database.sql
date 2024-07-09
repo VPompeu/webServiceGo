@@ -12,7 +12,7 @@ CREATE TABLE users (
 );
 ALTER TABLE users ADD CONSTRAINT unique_email UNIQUE (email);
 
-CREATE TABLE notes (
+CREATE TABLE user_notes (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL,
     note TEXT NOT NULL,

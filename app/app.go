@@ -198,13 +198,71 @@ func (a *App) getNotes(w http.ResponseWriter, r *http.Request) {
 	if err := n.Get(a.DB, formattedDate); err != nil {
 		switch err {
 		case sql.ErrNoRows:
-			respondWithError(w, http.StatusNotFound, "Note not found")
+			respondWithJSON(w, http.StatusOK, nil)
 		default:
 			respondWithError(w, http.StatusInternalServerError, err.Error())
 		}
 		return
 	}
 
+	respondWithJSON(w, http.StatusOK, n)
+}
+
+func (a *App) addUserNoteHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	userID := vars["id"]
+
+	var n models.UserNote
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&n); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request payload")
+		return
+	}
+	defer r.Body.Close()
+
+	// Convert userID to integer and assign it to UserNote
+	n.UserID, _ = strconv.Atoi(userID)
+
+	// Chama a função Add para adicionar a nota do usuário
+	err := n.AddUserNote(a.DB)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Retorna a nota do usuário adicionada
+	respondWithJSON(w, http.StatusCreated, n)
+}
+
+func (a *App) getUserNoteHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	userID, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid user ID")
+		return
+	}
+	date := vars["date"]
+
+	// Verificar se a data tem exatamente 8 caracteres
+	if len(date) != 8 {
+		respondWithError(w, http.StatusBadRequest, "Invalid date format")
+		return
+	}
+
+	// Converter a data de DDMMYYYY para DD/MM/YYYY
+	formattedDate := fmt.Sprintf("%s/%s/%s", date[:2], date[2:4], date[4:8])
+
+	var n models.UserNote
+	if err := n.GetUserNoteByDate(a.DB, userID, formattedDate); err != nil {
+		if err == sql.ErrNoRows {
+			respondWithJSON(w, http.StatusOK, nil)
+		} else {
+			respondWithError(w, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+
+	// Se encontrar a nota, retornar um array com uma única nota
 	respondWithJSON(w, http.StatusOK, n)
 }
 
@@ -395,6 +453,8 @@ func (a *App) initializeRoutes() {
 	a.Router.HandleFunc("/user", authenticate(a.createUser)).Methods("POST")
 	a.Router.HandleFunc("/user/{id:[0-9]+}", authenticate(a.updateUser)).Methods("PUT")
 	a.Router.HandleFunc("/user/{id:[0-9]+}", authenticate(a.deleteUser)).Methods("DELETE")
+	a.Router.HandleFunc("/users/{id:[0-9]+}/notes/{date:\\d{8}}", authenticate(a.getUserNoteHandler)).Methods("GET")
+	a.Router.HandleFunc("/users/{id:[0-9]+}/notes", authenticate(a.addUserNoteHandler)).Methods("POST")
 	a.Router.HandleFunc("/notes/{date:\\d{8}}", authenticate(a.getNotes)).Methods("GET")
 	a.Router.HandleFunc("/notes", authenticate(a.addNote)).Methods("POST")
 	a.Router.HandleFunc("/activate", authenticate(a.activateLicense)).Methods("POST")
