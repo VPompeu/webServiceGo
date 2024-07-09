@@ -10,5 +10,25 @@ CREATE TABLE users (
     Country VARCHAR(255),
     License BOOLEAN
 );
+ALTER TABLE users ADD CONSTRAINT unique_email UNIQUE (email);
+
+CREATE TABLE notes (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL,
+    note TEXT NOT NULL,
+    note_date VARCHAR(10) NOT NULL,
+    CONSTRAINT fk_user
+      FOREIGN KEY(user_id) 
+	  REFERENCES users(id),
+    UNIQUE (user_id, note_date)
+);
+
+CREATE TABLE global_notes (
+    id SERIAL PRIMARY KEY,
+    note TEXT NOT NULL,
+    sun TEXT NOT NULL,
+    moon TEXT NOT NULL,
+    note_date VARCHAR(10) NOT NULL UNIQUE
+);
 
 INSERT INTO `users` (`ID`, `Name`, `Email`, `Password`, `Phone`, `Birthday`, `City`, `State`, `Country`, `License`) VALUES (1, "Victor Pompeu", "pompeu.dev@gmail.com", "$2a$10$7uzd8Dx7MwIdxU3ZBoK.jePYUVlPHjAnkrb3LxwVbUlA1/RcCNHOG", "51996368303", "04/03/2001", "Tramandaí", "RS", "Brasil", 1);

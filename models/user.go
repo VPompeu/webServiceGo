@@ -33,6 +33,13 @@ func (u *User) UpdateUser(db *sql.DB) error {
 	return err
 }
 
+func (u *User) Activate(db *sql.DB) error {
+	_, err :=
+		db.Exec("UPDATE users SET license = true WHERE email=$1", u.Email)
+
+	return err
+}
+
 func (u *User) DeleteUser(db *sql.DB) error {
 	_, err := db.Exec("DELETE FROM users WHERE id=$1", u.ID)
 
@@ -68,6 +75,24 @@ func (u *User) Login(db *sql.DB) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func (u *User) Register(db *sql.DB) error {
+	// Hash da senha
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	// Query para inserir o novo usuário
+	query := `INSERT INTO users (name, email, password, phone, birthday, city, state, country, license) 
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`
+	err = db.QueryRow(query, u.Name, u.Email, hashedPassword, u.Phone, u.Birthday, u.City, u.State, u.Country, u.License).Scan(&u.ID)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func GetUsers(db *sql.DB, start, count int) ([]User, error) {

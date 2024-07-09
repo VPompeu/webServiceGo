@@ -33,8 +33,11 @@ type Claims struct {
 }
 
 func (a *App) Initialize(user, password, dbname, dbhost string) {
+	log.Print(user)
+	log.Print(password)
+	log.Print(dbname)
 	connectionString :=
-		fmt.Sprintf("user=%s password=%s dbname=%s host=%s sslmode=disable", user, password, dbname, dbhost)
+		fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable", user, password, dbname)
 
 	var err error
 	a.DB, err = sql.Open("postgres", connectionString)
@@ -158,6 +161,53 @@ func (a *App) getUser(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, u)
 }
 
+func (a *App) addNote(w http.ResponseWriter, r *http.Request) {
+	var n models.GlobalNote
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&n); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request payload")
+		return
+	}
+	defer r.Body.Close()
+
+	// Chama a função Add para adicionar a anotação global
+	err := n.Add(a.DB)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Retorna a anotação global adicionada
+	respondWithJSON(w, http.StatusCreated, n)
+}
+
+func (a *App) getNotes(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	date := vars["date"]
+
+	// Verificar se a data tem exatamente 8 caracteres
+	if len(date) != 8 {
+		respondWithError(w, http.StatusBadRequest, "Invalid date format")
+		return
+	}
+
+	// Converter a data de DDMMYYYY para DD/MM/YYYY
+	formattedDate := fmt.Sprintf("%s/%s/%s", date[:2], date[2:4], date[4:8])
+
+	var n models.GlobalNote
+	if err := n.Get(a.DB, formattedDate); err != nil {
+		switch err {
+		case sql.ErrNoRows:
+			respondWithError(w, http.StatusNotFound, "Note not found")
+		default:
+			respondWithError(w, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, n)
+}
+
 func (a *App) createUser(w http.ResponseWriter, r *http.Request) {
 	var u models.User
 	decoder := json.NewDecoder(r.Body)
@@ -278,6 +328,65 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (a *App) signin(w http.ResponseWriter, r *http.Request) {
+	var u models.User
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&u); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request payload")
+		return
+	}
+	defer r.Body.Close()
+
+	if u.Name == "" {
+		respondWithError(w, http.StatusBadRequest, "Empty Name")
+		return
+	}
+
+	if u.Email == "" {
+		respondWithError(w, http.StatusBadRequest, "Empty E-mail")
+		return
+	}
+
+	if len(u.Password) < 6 {
+		respondWithError(w, http.StatusBadRequest, "Short Password")
+		return
+	}
+	// Chama a função Register para registrar o novo usuário
+	err := u.Register(a.DB)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Retorna o email do usuário registrado
+	respondWithJSON(w, http.StatusCreated, map[string]string{"email": u.Email})
+}
+
+func (a *App) activateLicense(w http.ResponseWriter, r *http.Request) {
+	var u models.User
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&u); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request payload")
+		return
+	}
+	defer r.Body.Close()
+
+	if u.Email == "" {
+		respondWithError(w, http.StatusBadRequest, "Empty E-mail")
+		return
+	}
+
+	// Chama a função Register para registrar o novo usuário
+	err := u.Activate(a.DB)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Retorna o email do usuário registrado
+	respondWithJSON(w, http.StatusCreated, "Usuario ativado com sucesso!")
+}
+
 func (a *App) initializeRoutes() {
 	a.Router.HandleFunc("/checkdb", a.checkDBConnection).Methods("GET")
 
@@ -286,7 +395,11 @@ func (a *App) initializeRoutes() {
 	a.Router.HandleFunc("/user", authenticate(a.createUser)).Methods("POST")
 	a.Router.HandleFunc("/user/{id:[0-9]+}", authenticate(a.updateUser)).Methods("PUT")
 	a.Router.HandleFunc("/user/{id:[0-9]+}", authenticate(a.deleteUser)).Methods("DELETE")
+	a.Router.HandleFunc("/notes/{date:\\d{8}}", authenticate(a.getNotes)).Methods("GET")
+	a.Router.HandleFunc("/notes", authenticate(a.addNote)).Methods("POST")
+	a.Router.HandleFunc("/activate", authenticate(a.activateLicense)).Methods("POST")
 	a.Router.HandleFunc("/login", a.login).Methods("POST")
+	a.Router.HandleFunc("/signin", a.signin).Methods("POST")
 }
 
 func (a *App) Run(addr string) {
