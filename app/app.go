@@ -21,9 +21,10 @@ import (
 )
 
 type App struct {
-	Router  *mux.Router
-	DB      *sql.DB
-	Handler http.Handler
+	Router           *mux.Router
+	DB               *sql.DB
+	Handler          http.Handler
+	ConnectionString string
 }
 
 type Claims struct {
@@ -38,12 +39,7 @@ func (a *App) Initialize(user, password, dbname, dbhost, dbport string) {
 	log.Print(dbname)
 	connectionString :=
 		fmt.Sprintf("user=%s password=%s dbname=%s host=%s port=%s sslmode=disable", user, password, dbname, dbhost, dbport)
-
-	var err error
-	a.DB, err = sql.Open("postgres", connectionString)
-	if err != nil {
-		log.Fatal(err)
-	}
+	a.ConnectionString = connectionString
 
 	a.Router = mux.NewRouter()
 	c := cors.New(cors.Options{
@@ -71,11 +67,17 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 }
 
 func (a *App) checkDBConnection(w http.ResponseWriter, r *http.Request) {
-	err := a.DB.Ping()
+	var err error
+	a.DB, err = sql.Open("postgres", a.ConnectionString)
 	if err != nil {
+		log.Fatal(err)
+	}
+	erro := a.DB.Ping()
+	if erro != nil {
 		respondWithError(w, http.StatusInternalServerError, "Database connection failed")
 		return
 	}
+	defer a.DB.Close()
 	respondWithJSON(w, http.StatusOK, map[string]string{"status": "Database connection successful"})
 }
 
@@ -464,7 +466,7 @@ func (a *App) initializeRoutes() {
 
 func (a *App) Run(addr string) {
 	log.Printf("Conectando com banco de dados!")
-	defer a.DB.Close()
+
 	log.Printf("Iniciando serviço em: %s ", addr)
 	log.Fatal(http.ListenAndServe(addr, a.Handler))
 }
