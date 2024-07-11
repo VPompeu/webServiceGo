@@ -1,10 +1,6 @@
 # Usar uma imagem base do Golang
 FROM golang:1.22
 
-# Adiciona o Cloud SQL Proxy
-ADD https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 /cloud_sql_proxy
-RUN chmod +x /cloud_sql_proxy
-
 # Definir o diretório de trabalho
 WORKDIR /
 
@@ -19,9 +15,5 @@ COPY . .
 # Compilar a aplicação
 RUN go build -o main .
 
-# Copiar o script de entrada
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
 # Definir o comando de entrada para o contêiner
-ENTRYPOINT ["/entrypoint.sh"]
+CMD ["./main"]
