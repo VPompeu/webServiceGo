@@ -32,12 +32,12 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-func (a *App) Initialize(user, password, dbname, dbhost string) {
+func (a *App) Initialize(user, password, dbname, dbhost, dbport string) {
 	log.Print(user)
 	log.Print(password)
 	log.Print(dbname)
 	connectionString :=
-		fmt.Sprintf("user=%s password=%s dbname=%s host=%s sslmode=disable", user, password, dbname, dbhost)
+		fmt.Sprintf("user=%s password=%s dbname=%s host=%s port=%s sslmode=disable", user, password, dbname, dbhost, dbport)
 
 	var err error
 	a.DB, err = sql.Open("postgres", connectionString)
