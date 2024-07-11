@@ -19,5 +19,9 @@ COPY . .
 # Compilar a aplicação
 RUN go build -o main .
 
+# Copiar o script de entrada
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Definir o comando de entrada para o contêiner
-CMD ["/cloud_sql_proxy", "-dir=/cloudsql", "&", "./main"]
+ENTRYPOINT ["/entrypoint.sh"]
