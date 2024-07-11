@@ -478,7 +478,7 @@ func (a *App) Run(addr string) {
 	if erro != nil {
 		log.Print(erro)
 	}
+	defer a.DB.Close()
 	log.Printf("Iniciando serviço em: %s ", addr)
 	log.Fatal(http.ListenAndServe(addr, a.Handler))
-	defer a.DB.Close()
 }
