@@ -44,10 +44,6 @@ func (a *App) Initialize(user, password, dbname, dbhost, dbport string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	erro := a.DB.Ping()
-	if erro != nil {
-		log.Print(erro)
-	}
 	log.Print(err)
 	log.Print(a.DB)
 
