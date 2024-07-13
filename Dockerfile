@@ -1,8 +1,8 @@
 # Usar uma imagem base do Golang
-FROM golang:1.22
+FROM golang:1.22 as builder
 
 # Definir o diretório de trabalho
-WORKDIR /
+WORKDIR /app
 
 # Copiar o go.mod e go.sum e baixar as dependências
 COPY go.mod go.sum ./
@@ -14,7 +14,7 @@ COPY . .
 
 # Compilar a aplicação
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server
-ENTRYPOINT [ "/server"]
 
-# Definir o comando de entrada para o contêiner
-CMD ["./main"]
+FROM scratch
+COPY --from=builder /app/server /server
+ENTRYPOINT [ "/server"]
