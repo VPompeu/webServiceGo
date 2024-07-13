@@ -13,7 +13,8 @@ EXPOSE 8080
 COPY . .
 
 # Compilar a aplicação
-RUN go build -o main .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server
+ENTRYPOINT [ "/server"]
 
 # Definir o comando de entrada para o contêiner
 CMD ["./main"]
