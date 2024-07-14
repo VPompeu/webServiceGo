@@ -14,10 +14,10 @@ func main() {
 		log.Fatalf("Erro ao carregar o arquivo .env: %v", err)
 	}
 	dbUser := os.Getenv("DB_USER")
-	dbPassword := os.Getenv("DB_PASSWORD")
+	dbPassword := os.Getenv("DB_PASS")
 	dbName := os.Getenv("DB_NAME")
-	dbHost := os.Getenv("DB_HOST")
-	dbPort := os.Getenv("DB_PORT")
+	dbHost := os.Getenv("INSTANCE_UNIX_SOCKET")
+	dbPort := os.Getenv("INSTANCE_CONNECTION_NAME")
 
 	a := app.App{}
 	a.Initialize(
