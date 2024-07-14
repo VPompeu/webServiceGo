@@ -75,7 +75,6 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 func (a *App) checkDBConnection(w http.ResponseWriter, r *http.Request) {
 	log.Print(a.DB)
 	err := a.DB.Ping()
-	log.Print("Chegayy")
 	if err != nil {
 		log.Print(err)
 		respondWithError(w, http.StatusInternalServerError, "Database connection failed")
