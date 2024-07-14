@@ -3,6 +3,7 @@ package models
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -30,6 +31,11 @@ type UserNote struct {
 func (u *User) GetUser(db *sql.DB) error {
 	return db.QueryRow("SELECT name, email, password, phone, birthday, city, state, country, license FROM users WHERE id=$1",
 		u.ID).Scan(&u.Name, &u.Email, &u.Password, &u.Phone, &u.Birthday, &u.City, &u.State, &u.Country, &u.License)
+}
+
+func (u *User) GetUserByEmail(db *sql.DB) error {
+	return db.QueryRow("SELECT id FROM users WHERE email=$1",
+		u.Email).Scan(&u.ID)
 }
 
 func (u *User) UpdateUser(db *sql.DB) error {
@@ -102,6 +108,15 @@ func (u *User) Register(db *sql.DB) error {
 	return nil
 }
 
+func (u *User) StoreResetToken(db *sql.DB, token string) error {
+	// Define a data de expiração (1 hora a partir do momento atual)
+	expiresAt := time.Now().Add(1 * time.Hour)
+
+	query := `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)`
+	_, err := db.Exec(query, u.ID, token, expiresAt)
+	return err
+}
+
 func GetUsers(db *sql.DB, start, count int) ([]User, error) {
 	rows, err := db.Query(
 		"SELECT id, name, email, phone, birthday, city, state, country, license FROM users LIMIT $1 OFFSET $2",
@@ -129,6 +144,15 @@ func GetUsers(db *sql.DB, start, count int) ([]User, error) {
 func (n *UserNote) AddUserNote(db *sql.DB) error {
 	query := `INSERT INTO user_notes (user_id, note, note_date) VALUES ($1, $2, $3) RETURNING id`
 	err := db.QueryRow(query, n.UserID, n.Note, n.NoteDate).Scan(&n.ID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (n *UserNote) UpdateUserNote(db *sql.DB) error {
+	query := `UPDATE user_notes SET note = $1, note_date = $2 WHERE id = $3 AND user_id = $4 RETURNING id`
+	err := db.QueryRow(query, n.Note, n.NoteDate, n.ID, n.UserID).Scan(&n.ID)
 	if err != nil {
 		return err
 	}

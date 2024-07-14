@@ -32,20 +32,24 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-func (a *App) Initialize(user, password, dbname, dbhost, dbport string) {
-	log.Print(user)
-	log.Print(password)
-	log.Print(dbname)
+type PasswordResetRequest struct {
+	Email string `json:"email"`
+}
+
+type PasswordReset struct {
+	Token       string `json:"token"`
+	NewPassword string `json:"new_password"`
+}
+
+func (a *App) Initialize(user, password, dbname, dbport string) {
 	connectionString :=
-		fmt.Sprintf("user=%s password=%s dbname=%s host=%s port=%s sslmode=disable", user, password, dbname, dbhost, dbport)
+		fmt.Sprintf("user=%s password=%s dbname=%s port=%s sslmode=disable", user, password, dbname, dbport)
 
 	var err error
 	a.DB, err = sql.Open("postgres", connectionString)
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Print(err)
-	log.Print(a.DB)
 
 	a.Router = mux.NewRouter()
 	c := cors.New(cors.Options{
@@ -58,50 +62,6 @@ func (a *App) Initialize(user, password, dbname, dbhost, dbport string) {
 	})
 	a.Handler = c.Handler(a.Router)
 	a.initializeRoutes()
-}
-
-func respondWithError(w http.ResponseWriter, code int, message string) {
-	respondWithJSON(w, code, map[string]string{"error": message})
-}
-
-func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
-	response, _ := json.Marshal(payload)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	w.Write(response)
-}
-
-func (a *App) checkDBConnection(w http.ResponseWriter, r *http.Request) {
-	log.Print(a.DB)
-	err := a.DB.Ping()
-	if err != nil {
-		log.Print(err)
-		respondWithError(w, http.StatusInternalServerError, "Database connection failed")
-		return
-	}
-	log.Print(err)
-	respondWithJSON(w, http.StatusOK, map[string]string{"status": "Database connection successful"})
-}
-
-func (a *App) getUsers(w http.ResponseWriter, r *http.Request) {
-	count, _ := strconv.Atoi(r.FormValue("count"))
-	start, _ := strconv.Atoi(r.FormValue("start"))
-
-	if count > 10 || count < 1 {
-		count = 10
-	}
-	if start < 0 {
-		start = 0
-	}
-
-	users, err := models.GetUsers(a.DB, start, count)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	respondWithJSON(w, http.StatusOK, users)
 }
 
 func authenticate(next http.HandlerFunc) http.HandlerFunc {
@@ -144,6 +104,30 @@ func authenticate(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func respondWithError(w http.ResponseWriter, code int, message string) {
+	respondWithJSON(w, code, map[string]string{"error": message})
+}
+
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+	response, _ := json.Marshal(payload)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	w.Write(response)
+}
+
+func (a *App) checkDBConnection(w http.ResponseWriter, r *http.Request) {
+	log.Print(a.DB)
+	err := a.DB.Ping()
+	if err != nil {
+		log.Print(err)
+		respondWithError(w, http.StatusInternalServerError, "Database connection failed")
+		return
+	}
+	log.Print(err)
+	respondWithJSON(w, http.StatusOK, map[string]string{"status": "Database connection successful"})
+}
+
 func (a *App) getUser(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id, err := strconv.Atoi(vars["id"])
@@ -164,6 +148,68 @@ func (a *App) getUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, u)
+}
+
+func (a *App) updateUser(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid user ID")
+		return
+	}
+
+	var u models.User
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&u); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
+		return
+	}
+	defer r.Body.Close()
+	u.ID = id
+
+	if err := u.UpdateUser(a.DB); err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, u)
+}
+
+func (a *App) deleteUser(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid User ID")
+		return
+	}
+
+	u := models.User{ID: id}
+	if err := u.DeleteUser(a.DB); err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]string{"result": "200"})
+}
+
+func (a *App) getUsers(w http.ResponseWriter, r *http.Request) {
+	count, _ := strconv.Atoi(r.FormValue("count"))
+	start, _ := strconv.Atoi(r.FormValue("start"))
+
+	if count > 10 || count < 1 {
+		count = 10
+	}
+	if start < 0 {
+		start = 0
+	}
+
+	users, err := models.GetUsers(a.DB, start, count)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, users)
 }
 
 func (a *App) addNote(w http.ResponseWriter, r *http.Request) {
@@ -228,15 +274,25 @@ func (a *App) addUserNoteHandler(w http.ResponseWriter, r *http.Request) {
 	// Convert userID to integer and assign it to UserNote
 	n.UserID, _ = strconv.Atoi(userID)
 
-	// Chama a função Add para adicionar a nota do usuário
-	err := n.AddUserNote(a.DB)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
-		return
+	if n.ID == 0 {
+		// Se o campo ID não está presente ou é 0, criar uma nova nota
+		err := n.AddUserNote(a.DB)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		// Retorna a nota do usuário adicionada
+		respondWithJSON(w, http.StatusCreated, n)
+	} else {
+		// Se o campo ID está presente, atualizar a nota existente
+		err := n.UpdateUserNote(a.DB)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		// Retorna a nota do usuário atualizada
+		respondWithJSON(w, http.StatusOK, n)
 	}
-
-	// Retorna a nota do usuário adicionada
-	respondWithJSON(w, http.StatusCreated, n)
 }
 
 func (a *App) getUserNoteHandler(w http.ResponseWriter, r *http.Request) {
@@ -309,48 +365,6 @@ func (a *App) createUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusCreated, u)
-}
-
-func (a *App) updateUser(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := strconv.Atoi(vars["id"])
-	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid user ID")
-		return
-	}
-
-	var u models.User
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&u); err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid resquest payload")
-		return
-	}
-	defer r.Body.Close()
-	u.ID = id
-
-	if err := u.UpdateUser(a.DB); err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	respondWithJSON(w, http.StatusOK, u)
-}
-
-func (a *App) deleteUser(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := strconv.Atoi(vars["id"])
-	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid User ID")
-		return
-	}
-
-	u := models.User{ID: id}
-	if err := u.DeleteUser(a.DB); err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	respondWithJSON(w, http.StatusOK, map[string]string{"result": "200"})
 }
 
 func (a *App) login(w http.ResponseWriter, r *http.Request) {
@@ -450,21 +464,92 @@ func (a *App) activateLicense(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusCreated, "Usuario ativado com sucesso!")
 }
 
+func (a *App) requestPasswordResetHandler(w http.ResponseWriter, r *http.Request) {
+	var request PasswordResetRequest
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&request); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request payload")
+		return
+	}
+	defer r.Body.Close()
+	var u models.User
+	// Verifica se o e-mail existe no banco de dados
+	err := u.GetUserByEmail(a.DB)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "Email not found")
+		return
+	}
+
+	// Gera um token de recuperação de senha
+	token, err := generateResetToken()
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could not generate reset token")
+		return
+	}
+
+	// Armazena o token no banco de dados com um prazo de validade
+	err = u.StoreResetToken(a.DB, token)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could not store reset token")
+		return
+	}
+
+	// Envia o e-mail de recuperação de senha
+	// err = sendPasswordResetEmail(u.Email, token)
+	// if err != nil {
+	// 	respondWithError(w, http.StatusInternalServerError, "Could not send email")
+	// 	return
+	// }
+
+	respondWithJSON(w, http.StatusOK, map[string]string{"message": token})
+}
+
+func generateResetToken() (string, error) {
+	// Define a chave secreta usada para assinar o token
+	secretKey := os.Getenv("JWT_KEY")
+
+	// Define as reivindicações do token
+	claims := &jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)), // Token expira em 1 hora
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+	}
+
+	// Cria o token usando o algoritmo de assinatura HMAC SHA256 e as reivindicações definidas
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	// Assina o token com a chave secreta
+	tokenString, err := token.SignedString(secretKey)
+	if err != nil {
+		return "", err
+	}
+
+	return tokenString, nil
+}
+
 func (a *App) initializeRoutes() {
 	a.Router.HandleFunc("/checkdb", a.checkDBConnection).Methods("GET")
 
-	a.Router.HandleFunc("/users", authenticate(a.getUsers)).Methods("GET")
+	//User Methods
 	a.Router.HandleFunc("/user/{id:[0-9]+}", authenticate(a.getUser)).Methods("GET")
 	a.Router.HandleFunc("/user", authenticate(a.createUser)).Methods("POST")
 	a.Router.HandleFunc("/user/{id:[0-9]+}", authenticate(a.updateUser)).Methods("PUT")
 	a.Router.HandleFunc("/user/{id:[0-9]+}", authenticate(a.deleteUser)).Methods("DELETE")
+
+	a.Router.HandleFunc("/users", authenticate(a.getUsers)).Methods("GET")
 	a.Router.HandleFunc("/users/{id:[0-9]+}/notes/{date:\\d{8}}", authenticate(a.getUserNoteHandler)).Methods("GET")
 	a.Router.HandleFunc("/users/{id:[0-9]+}/notes", authenticate(a.addUserNoteHandler)).Methods("POST")
+	a.Router.HandleFunc("/users/{id:[0-9]+}/notes", authenticate(a.addUserNoteHandler)).Methods("PUT")
+
+	//Global Notes Methods
 	a.Router.HandleFunc("/notes/{date:\\d{8}}", authenticate(a.getNotes)).Methods("GET")
 	a.Router.HandleFunc("/notes", authenticate(a.addNote)).Methods("POST")
+
+	//Session Methods
 	a.Router.HandleFunc("/activate", authenticate(a.activateLicense)).Methods("POST")
 	a.Router.HandleFunc("/login", a.login).Methods("POST")
 	a.Router.HandleFunc("/signin", a.signin).Methods("POST")
+	a.Router.HandleFunc("/password_reset", a.requestPasswordResetHandler).Methods("POST")
+
 }
 
 func (a *App) Run(addr string) {

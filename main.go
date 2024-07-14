@@ -16,7 +16,7 @@ func main() {
 	dbUser := os.Getenv("DB_USER")
 	dbPassword := os.Getenv("DB_PASSWORD")
 	dbName := os.Getenv("DB_NAME")
-	dbHost := os.Getenv("DB_HOST")
+	//dbHost := os.Getenv("DB_HOST")
 	dbPort := os.Getenv("DB_PORT")
 
 	a := app.App{}
@@ -24,7 +24,6 @@ func main() {
 		dbUser,
 		dbPassword,
 		dbName,
-		dbHost,
 		dbPort)
 
 	a.Run(":8080")

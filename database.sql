@@ -31,6 +31,15 @@ CREATE TABLE global_notes (
     note_date VARCHAR(10) NOT NULL UNIQUE
 );
 
+CREATE TABLE password_reset_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL,
+    token TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 UPDATE users
 SET license = false
 WHERE id = 1;
