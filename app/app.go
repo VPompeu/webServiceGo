@@ -43,9 +43,9 @@ type PasswordReset struct {
 	NewPassword string `json:"new_password"`
 }
 
-func (a *App) Initialize(user, password, dbname, dbport string) {
+func (a *App) Initialize(user, password, dbname, dbhost, dbport string) {
 	connectionString :=
-		fmt.Sprintf("user=%s password=%s dbname=%s port=%s sslmode=disable", user, password, dbname, dbport)
+		fmt.Sprintf("user=%s password=%s dbname=%s host=%s port=%s sslmode=disable", user, password, dbname, dbhost, dbport)
 
 	var err error
 	a.DB, err = sql.Open("postgres", connectionString)
