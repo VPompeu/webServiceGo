@@ -110,10 +110,45 @@ func (u *User) Register(db *sql.DB) error {
 
 func (u *User) StoreResetToken(db *sql.DB, token string) error {
 	// Define a data de expiração (1 hora a partir do momento atual)
-	expiresAt := time.Now().Add(1 * time.Hour)
+	expiresAt := time.Now().Add(1 * time.Hour).UTC()
 
 	query := `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)`
 	_, err := db.Exec(query, u.ID, token, expiresAt)
+	return err
+}
+
+func (u *User) ValidateResetToken(db *sql.DB, token string) error {
+	var expiresAt time.Time
+
+	query := `SELECT user_id, expires_at FROM password_reset_tokens WHERE token = $1`
+	err := db.QueryRow(query, token).Scan(&u.ID, &expiresAt)
+
+	if err != nil {
+		return err
+	}
+
+	if time.Now().After(expiresAt) {
+		return fmt.Errorf("token expired")
+	}
+
+	return nil
+}
+
+func (u *User) RemoveResetToken(db *sql.DB, token string) error {
+	query := `DELETE FROM password_reset_tokens WHERE token = $1`
+	_, err := db.Exec(query, token)
+	return err
+}
+
+func (u *User) UpdateUserPassword(db *sql.DB, newPassword string) error {
+	// Criptografa a nova senha
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	query := `UPDATE users SET password = $1 WHERE id = $2`
+	_, err = db.Exec(query, hashedPassword, u.ID)
 	return err
 }
 

@@ -17,6 +17,8 @@ import (
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
 	"github.com/rs/cors"
+	"github.com/sendgrid/sendgrid-go"
+	"github.com/sendgrid/sendgrid-go/helpers/mail"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -473,6 +475,7 @@ func (a *App) requestPasswordResetHandler(w http.ResponseWriter, r *http.Request
 	}
 	defer r.Body.Close()
 	var u models.User
+	u.Email = request.Email
 	// Verifica se o e-mail existe no banco de dados
 	err := u.GetUserByEmail(a.DB)
 	if err != nil {
@@ -483,7 +486,7 @@ func (a *App) requestPasswordResetHandler(w http.ResponseWriter, r *http.Request
 	// Gera um token de recuperação de senha
 	token, err := generateResetToken()
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Could not generate reset token")
+		respondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -494,14 +497,70 @@ func (a *App) requestPasswordResetHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Envia o e-mail de recuperação de senha
-	// err = sendPasswordResetEmail(u.Email, token)
-	// if err != nil {
-	// 	respondWithError(w, http.StatusInternalServerError, "Could not send email")
-	// 	return
-	// }
+	//Envia o e-mail de recuperação de senha
+	err = sendPasswordResetEmail(u.Email, token)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could not send email")
+		return
+	}
 
-	respondWithJSON(w, http.StatusOK, map[string]string{"message": token})
+	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Email enviado com sucesso!"})
+}
+
+func sendPasswordResetEmail(email string, token string) error {
+	sendFrom := os.Getenv("SENDGRID_DOMAIN")
+
+	from := mail.NewEmail("Paula Arruda", sendFrom)
+	subject := "Redefinição de Senha"
+	to := mail.NewEmail("Prezado(a)", email)
+	plainTextContent := fmt.Sprintf("Para redefinir sua senha, acesse o link: http://localhost:3000/reset_password?token=%s", token)
+	htmlContent := fmt.Sprintf("<p>Para redefinir sua senha, acesse o link abaixo:</p><a href='http://localhost:3000/reset_password?token=%s'>Redefinir Senha</a>", token)
+	message := mail.NewSingleEmail(from, subject, to, plainTextContent, htmlContent)
+	client := sendgrid.NewSendClient(os.Getenv("SENDGRID_KEY"))
+	response, err := client.Send(message)
+
+	if err != nil {
+		return err
+	} else {
+		fmt.Println(response.StatusCode)
+		fmt.Println(response.Body)
+		fmt.Println(response.Headers)
+	}
+
+	return nil
+}
+
+func (a *App) resetPasswordHandler(w http.ResponseWriter, r *http.Request) {
+	var reset PasswordReset
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&reset); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request payload")
+		return
+	}
+	defer r.Body.Close()
+	var u models.User
+	// Valida o token e recupera o ID do usuário
+	err := u.ValidateResetToken(a.DB, reset.Token)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Atualiza a senha do usuário
+	err = u.UpdateUserPassword(a.DB, reset.NewPassword)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could not update password")
+		return
+	}
+
+	// Remove o token de recuperação usado
+	err = u.RemoveResetToken(a.DB, reset.Token)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could not remove reset token")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Password has been reset"})
 }
 
 func generateResetToken() (string, error) {
@@ -510,7 +569,7 @@ func generateResetToken() (string, error) {
 
 	// Define as reivindicações do token
 	claims := &jwt.RegisteredClaims{
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)), // Token expira em 1 hora
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour).UTC()), // Token expira em 1 hora
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
 	}
 
@@ -518,7 +577,7 @@ func generateResetToken() (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
 	// Assina o token com a chave secreta
-	tokenString, err := token.SignedString(secretKey)
+	tokenString, err := token.SignedString([]byte(secretKey))
 	if err != nil {
 		return "", err
 	}
@@ -548,7 +607,8 @@ func (a *App) initializeRoutes() {
 	a.Router.HandleFunc("/activate", authenticate(a.activateLicense)).Methods("POST")
 	a.Router.HandleFunc("/login", a.login).Methods("POST")
 	a.Router.HandleFunc("/signin", a.signin).Methods("POST")
-	a.Router.HandleFunc("/password_reset", a.requestPasswordResetHandler).Methods("POST")
+	a.Router.HandleFunc("/request_password_reset", a.requestPasswordResetHandler).Methods("POST")
+	a.Router.HandleFunc("/password_reset", a.resetPasswordHandler).Methods("POST")
 
 }
 
