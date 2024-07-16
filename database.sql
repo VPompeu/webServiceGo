@@ -26,8 +26,6 @@ CREATE TABLE user_notes (
 CREATE TABLE global_notes (
     id SERIAL PRIMARY KEY,
     note TEXT NOT NULL,
-    sun TEXT NOT NULL,
-    moon TEXT NOT NULL,
     note_date VARCHAR(10) NOT NULL UNIQUE
 );
 
