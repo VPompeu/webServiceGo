@@ -20,13 +20,11 @@ import (
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 )
 
 type App struct {
 	Router  *mux.Router
-	DB      *gorm.DB
+	DB      *sql.DB
 	Handler http.Handler
 }
 
@@ -45,20 +43,19 @@ type PasswordReset struct {
 	NewPassword string `json:"new_password"`
 }
 
-var dbs = make(map[string]*gorm.DB)
-
 func (a *App) Initialize(user, password, dbname, dbhost, dbport string) {
-	ssl := false // Set to true if SSL is required
+	connectionString :=
+		fmt.Sprintf("user=%s password=%s dbname=%s host=%s port=%s sslmode=disable", user, password, dbname, dbhost, dbport)
 
 	var err error
-	a.DB, err = GetConnection(dbhost, dbport, user, password, dbname, ssl)
+	a.DB, err = sql.Open("postgres", connectionString)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	a.Router = mux.NewRouter()
 	c := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"}, // Replace with your allowed origins
+		AllowedOrigins:   []string{"*"}, // Substitua pelo seu domínio de origem
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},
 		AllowCredentials: true,
@@ -67,55 +64,6 @@ func (a *App) Initialize(user, password, dbname, dbhost, dbport string) {
 	})
 	a.Handler = c.Handler(a.Router)
 	a.initializeRoutes()
-}
-
-func GetConnection(host, port, user, password, dbName string, ssl bool) (*gorm.DB, error) {
-	if dbs[dbName] == nil {
-		db, err := getDbConnection(host, port, user, password, dbName, ssl)
-		if err != nil {
-			if isMissingDatabase(err, dbName) {
-				if err = createDatabase(host, port, user, password, dbName, ssl); err == nil {
-					db, err = getDbConnection(host, port, user, password, dbName, ssl)
-					if err != nil {
-						return nil, err
-					}
-				}
-			}
-			if err != nil {
-				log.Printf("Erro ao tentar conectar ao banco de dados: %v", err)
-			}
-		}
-		dbs[dbName] = db
-	}
-	return dbs[dbName], nil
-}
-
-func getStringConnection(host, port, user, password, dbName string, ssl bool) string {
-	sslMode := "disable"
-	if ssl {
-		sslMode = "enable"
-	}
-	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s connect_timeout=5",
-		host, port, user, password, dbName, sslMode)
-}
-
-func getDbConnection(host, port, user, password, dbName string, ssl bool) (*gorm.DB, error) {
-	connectionString := getStringConnection(host, port, user, password, dbName, ssl)
-	db, err := gorm.Open(postgres.Open(connectionString), &gorm.Config{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
-	}
-	return db, nil
-}
-
-func isMissingDatabase(err error, dbName string) bool {
-	// Implement logic to check if the error is due to a missing database
-	return false
-}
-
-func createDatabase(host, port, user, password, dbName string, ssl bool) error {
-	// Implement logic to create the database
-	return nil
 }
 
 func authenticate(next http.HandlerFunc) http.HandlerFunc {
@@ -171,21 +119,14 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 }
 
 func (a *App) checkDBConnection(w http.ResponseWriter, r *http.Request) {
-	// Perform a simple query to check the database connection
-	sqlDB, err := a.DB.DB()
-	if err != nil {
-		log.Print(err)
-		respondWithError(w, http.StatusInternalServerError, "Failed to get database connection")
-		return
-	}
-
-	err = sqlDB.Ping()
+	log.Print(a.DB)
+	err := a.DB.Ping()
 	if err != nil {
 		log.Print(err)
 		respondWithError(w, http.StatusInternalServerError, "Database connection failed")
 		return
 	}
-
+	log.Print(err)
 	respondWithJSON(w, http.StatusOK, map[string]string{"status": "Database connection successful"})
 }
 
@@ -671,17 +612,9 @@ func (a *App) initializeRoutes() {
 
 }
 
-func (a *App) CloseDB() {
-	sqlDB, err := a.DB.DB()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer sqlDB.Close()
-}
-
 func (a *App) Run(addr string) {
-	defer a.CloseDB()
 	log.Printf("Conectando com banco de dados!")
+	defer a.DB.Close()
 	log.Printf("Iniciando serviço em: %s ", addr)
 	log.Fatal(http.ListenAndServe(addr, a.Handler))
 }

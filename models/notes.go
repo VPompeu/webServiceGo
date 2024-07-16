@@ -1,7 +1,7 @@
 package models
 
 import (
-	"gorm.io/gorm"
+	"database/sql"
 )
 
 type GlobalNote struct {
@@ -10,18 +10,16 @@ type GlobalNote struct {
 	NoteDate string `json:"note_date"`
 }
 
-func (n *GlobalNote) Add(db *gorm.DB) error {
-	result := db.Create(n)
-	if result.Error != nil {
-		return result.Error
+func (n *GlobalNote) Add(db *sql.DB) error {
+	query := `INSERT INTO global_notes (note, note_date) VALUES ($1, $2) RETURNING id`
+	err := db.QueryRow(query, n.Note, n.NoteDate).Scan(&n.ID)
+	if err != nil {
+		return err
 	}
 	return nil
 }
 
-func (n *GlobalNote) Get(db *gorm.DB, noteDate string) error {
-	result := db.Where("note_date = ?", noteDate).First(n)
-	if result.Error != nil {
-		return result.Error
-	}
-	return nil
+func (n *GlobalNote) Get(db *sql.DB, noteDate string) error {
+	query := `SELECT id, note, note_date FROM global_notes WHERE note_date = $1`
+	return db.QueryRow(query, noteDate).Scan(&n.ID, &n.Note, &n.NoteDate)
 }

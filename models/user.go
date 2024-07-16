@@ -1,11 +1,11 @@
 package models
 
 import (
+	"database/sql"
 	"fmt"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/gorm"
 )
 
 type User struct {
@@ -28,168 +28,173 @@ type UserNote struct {
 	NoteDate string `json:"note_date"`
 }
 
-func (u *User) GetUser(db *gorm.DB) error {
-	result := db.First(u, u.ID)
-	if result.Error != nil {
-		return result.Error
-	}
-	return nil
+func (u *User) GetUser(db *sql.DB) error {
+	return db.QueryRow("SELECT name, email, password, phone, birthday, city, state, country, license FROM users WHERE id=$1",
+		u.ID).Scan(&u.Name, &u.Email, &u.Password, &u.Phone, &u.Birthday, &u.City, &u.State, &u.Country, &u.License)
 }
 
-func (u *User) GetUserByEmail(db *gorm.DB) error {
-	result := db.Where("email = ?", u.Email).First(u)
-	if result.Error != nil {
-		return result.Error
-	}
-	return nil
+func (u *User) GetUserByEmail(db *sql.DB) error {
+	return db.QueryRow("SELECT id FROM users WHERE email=$1",
+		u.Email).Scan(&u.ID)
 }
 
-func (u *User) UpdateUser(db *gorm.DB) error {
-	result := db.Model(u).Updates(User{Name: u.Name, Email: u.Email, Phone: u.Phone, Birthday: u.Birthday, City: u.City, State: u.State, Country: u.Country, License: u.License})
-	if result.Error != nil {
-		return result.Error
-	}
-	return nil
+func (u *User) UpdateUser(db *sql.DB) error {
+	_, err :=
+		db.Exec("UPDATE users SET name=$1, email=$2, phone=$3, birthday=$4, city=$5, state=$6, country=$7, license=$8 WHERE id=$9",
+			u.Name, u.Email, u.Phone, u.Birthday, u.City, u.State, u.Country, u.License, u.ID)
+
+	return err
 }
 
-func (u *User) Activate(db *gorm.DB) error {
-	result := db.Model(u).UpdateColumn("license", true)
-	if result.Error != nil {
-		return result.Error
-	}
-	return nil
+func (u *User) Activate(db *sql.DB) error {
+	_, err :=
+		db.Exec("UPDATE users SET license = true WHERE email=$1", u.Email)
+
+	return err
 }
 
-func (u *User) DeleteUser(db *gorm.DB) error {
-	result := db.Delete(u, u.ID)
-	if result.Error != nil {
-		return result.Error
-	}
-	return nil
+func (u *User) DeleteUser(db *sql.DB) error {
+	_, err := db.Exec("DELETE FROM users WHERE id=$1", u.ID)
+
+	return err
 }
 
-func (u *User) CreateUser(db *gorm.DB) error {
-	u.Password = hashPassword(u.Password) // Hash da senha antes de salvar
-	result := db.Create(u)
-	if result.Error != nil {
-		return result.Error
-	}
-	return nil
-}
+func (u *User) CreateUser(db *sql.DB) error {
+	err := db.QueryRow(
+		"INSERT INTO users(name, email, password, phone, birthday, city, state, country, license) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id",
+		u.Name, u.Email, u.Password, u.Phone, u.Birthday, u.City, u.State, u.Country, u.License).Scan(&u.ID)
 
-func (u *User) Login(db *gorm.DB) (bool, error) {
-	var user User
-	result := db.Where("email = ?", u.Email).First(&user)
-	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			return false, fmt.Errorf("usuário não encontrado")
-		}
-		return false, result.Error
-	}
-
-	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(u.Password))
 	if err != nil {
-		return false, fmt.Errorf("email ou senha incorretos")
+		return err
 	}
 
-	u.ID = user.ID // Atualiza o ID do usuário que fez login
+	return nil
+}
+
+func (u *User) Login(db *sql.DB) (bool, error) {
+	var userHash string
+
+	err := db.QueryRow("SELECT id, password FROM users WHERE email = $1", u.Email).Scan(&u.ID, &userHash)
+
+	if err == sql.ErrNoRows {
+		return false, fmt.Errorf("usuário não encontrado")
+	} else if err != nil {
+		return false, err
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(userHash), []byte(u.Password))
+	if err != nil {
+		return false, fmt.Errorf("email or password incorrect")
+	}
+
 	return true, nil
 }
 
-func (u *User) Register(db *gorm.DB) error {
-	u.Password = hashPassword(u.Password) // Hash da senha antes de salvar
-	result := db.Create(u)
-	if result.Error != nil {
-		return result.Error
+func (u *User) Register(db *sql.DB) error {
+	// Hash da senha
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
 	}
+
+	// Query para inserir o novo usuário
+	query := `INSERT INTO users (name, email, password, phone, birthday, city, state, country, license) 
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`
+	err = db.QueryRow(query, u.Name, u.Email, hashedPassword, u.Phone, u.Birthday, u.City, u.State, u.Country, u.License).Scan(&u.ID)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (u *User) StoreResetToken(db *gorm.DB, token string) error {
+func (u *User) StoreResetToken(db *sql.DB, token string) error {
+	// Define a data de expiração (1 hora a partir do momento atual)
 	expiresAt := time.Now().Add(1 * time.Hour).UTC()
-	resetToken := ResetToken{UserID: u.ID, Token: token, ExpiresAt: expiresAt}
-	result := db.Create(&resetToken)
-	if result.Error != nil {
-		return result.Error
+
+	query := `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)`
+	_, err := db.Exec(query, u.ID, token, expiresAt)
+	return err
+}
+
+func (u *User) ValidateResetToken(db *sql.DB, token string) error {
+	var expiresAt time.Time
+
+	query := `SELECT user_id, expires_at FROM password_reset_tokens WHERE token = $1`
+	err := db.QueryRow(query, token).Scan(&u.ID, &expiresAt)
+
+	if err != nil {
+		return err
 	}
+
+	if time.Now().After(expiresAt) {
+		return fmt.Errorf("token expired")
+	}
+
 	return nil
 }
 
-func (u *User) ValidateResetToken(db *gorm.DB, token string) error {
-	var resetToken ResetToken
-	result := db.Where("token = ?", token).First(&resetToken)
-	if result.Error != nil {
-		return result.Error
-	}
-
-	if time.Now().After(resetToken.ExpiresAt) {
-		return fmt.Errorf("token expirado")
-	}
-
-	u.ID = resetToken.UserID // Atualiza o ID do usuário com base no token válido encontrado
-	return nil
+func (u *User) RemoveResetToken(db *sql.DB, token string) error {
+	query := `DELETE FROM password_reset_tokens WHERE token = $1`
+	_, err := db.Exec(query, token)
+	return err
 }
 
-func (u *User) RemoveResetToken(db *gorm.DB, token string) error {
-	result := db.Where("token = ?", token).Delete(&ResetToken{})
-	if result.Error != nil {
-		return result.Error
+func (u *User) UpdateUserPassword(db *sql.DB, newPassword string) error {
+	// Criptografa a nova senha
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
 	}
-	return nil
+
+	query := `UPDATE users SET password = $1 WHERE id = $2`
+	_, err = db.Exec(query, hashedPassword, u.ID)
+	return err
 }
 
-func (u *User) UpdateUserPassword(db *gorm.DB, newPassword string) error {
-	hashedPassword := hashPassword(newPassword) // Hash da nova senha antes de atualizar
-	result := db.Model(u).Update("password", hashedPassword)
-	if result.Error != nil {
-		return result.Error
-	}
-	return nil
-}
+func GetUsers(db *sql.DB, start, count int) ([]User, error) {
+	rows, err := db.Query(
+		"SELECT id, name, email, phone, birthday, city, state, country, license FROM users LIMIT $1 OFFSET $2",
+		count, start)
 
-func GetUsers(db *gorm.DB, start, count int) ([]User, error) {
-	var users []User
-	result := db.Limit(count).Offset(start).Find(&users)
-	if result.Error != nil {
-		return nil, result.Error
+	if err != nil {
+		return nil, err
 	}
+
+	defer rows.Close()
+
+	users := []User{}
+
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.Phone, &u.Birthday, &u.City, &u.State, &u.Country, &u.License); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+
 	return users, nil
 }
 
-func (n *UserNote) AddUserNote(db *gorm.DB) error {
-	result := db.Create(n)
-	if result.Error != nil {
-		return result.Error
+func (n *UserNote) AddUserNote(db *sql.DB) error {
+	query := `INSERT INTO user_notes (user_id, note, note_date) VALUES ($1, $2, $3) RETURNING id`
+	err := db.QueryRow(query, n.UserID, n.Note, n.NoteDate).Scan(&n.ID)
+	if err != nil {
+		return err
 	}
 	return nil
 }
 
-func (n *UserNote) UpdateUserNote(db *gorm.DB) error {
-	result := db.Model(n).Where("id = ? AND user_id = ?", n.ID, n.UserID).Updates(map[string]interface{}{"note": n.Note, "note_date": n.NoteDate})
-	if result.Error != nil {
-		return result.Error
+func (n *UserNote) UpdateUserNote(db *sql.DB) error {
+	query := `UPDATE user_notes SET note = $1, note_date = $2 WHERE id = $3 AND user_id = $4 RETURNING id`
+	err := db.QueryRow(query, n.Note, n.NoteDate, n.ID, n.UserID).Scan(&n.ID)
+	if err != nil {
+		return err
 	}
 	return nil
 }
 
-func (n *UserNote) GetUserNoteByDate(db *gorm.DB, userID int, noteDate string) error {
-	result := db.Where("user_id = ? AND note_date = ?", userID, noteDate).First(n)
-	if result.Error != nil {
-		return result.Error
-	}
-	return nil
-}
-
-// Função auxiliar para hashear a senha
-func hashPassword(password string) string {
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	return string(hashedPassword)
-}
-
-// Estrutura para tokens de redefinição de senha
-type ResetToken struct {
-	ID        uint      `gorm:"primaryKey"`
-	UserID    int       `gorm:"not null"`
-	Token     string    `gorm:"not null"`
-	ExpiresAt time.Time `gorm:"not null"`
+func (n *UserNote) GetUserNoteByDate(db *sql.DB, userID int, noteDate string) error {
+	query := `SELECT id, user_id, note, note_date FROM user_notes WHERE user_id = $1 AND note_date = $2`
+	return db.QueryRow(query, userID, noteDate).Scan(&n.ID, &n.UserID, &n.Note, &n.NoteDate)
 }
