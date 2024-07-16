@@ -1,7 +1,6 @@
-# Usar uma imagem base do Golang
-FROM golang:1.22 as builder
+# Primeira etapa: compilar a aplicação
+FROM golang:1.22 AS builder
 
-# Definir o diretório de trabalho
 WORKDIR /app
 
 # Copiar o go.mod e go.sum e baixar as dependências
@@ -11,14 +10,22 @@ RUN go mod download
 # Copiar o código-fonte da aplicação
 COPY . .
 
+# Compilar a aplicação
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /server .
+
+# Segunda etapa: construir a imagem final mínima
+FROM gcr.io/distroless/base-debian10
+
+WORKDIR /app
+
+# Copiar o executável compilado
+COPY --from=builder /server .
+
 # Copiar o arquivo .env para dentro do contêiner
 COPY .env .
 
-# Compilar a aplicação
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server .
+# Expor a porta utilizada pela aplicação
+EXPOSE 8080
 
-# Segunda etapa para construir a imagem final mínima
-FROM scratch
-COPY --from=builder /app/server /server
-COPY --from=builder /app/.env /.env
-ENTRYPOINT [ "/server" ]
+# Definir o comando de inicialização
+ENTRYPOINT [ "./server" ]
