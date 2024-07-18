@@ -513,8 +513,8 @@ func sendPasswordResetEmail(email string, token string) error {
 	from := mail.NewEmail("Paula Arruda", sendFrom)
 	subject := "Redefinição de Senha"
 	to := mail.NewEmail("Prezado(a)", email)
-	plainTextContent := fmt.Sprintf("Para redefinir sua senha, acesse o link: http://localhost:3000/reset_password?token=%s", token)
-	htmlContent := fmt.Sprintf("<p>Para redefinir sua senha, acesse o link abaixo:</p><a href='http://localhost:3000/reset_password?token=%s'>Redefinir Senha</a>", token)
+	plainTextContent := fmt.Sprintf("Para redefinir sua senha, acesse o link: http://paulaarruda.com.br/reset_password?token=%s", token)
+	htmlContent := fmt.Sprintf("<p>Para redefinir sua senha, acesse o link abaixo:</p><a href='http://paulaarruda.com.br/reset_password?token=%s'>Redefinir Senha</a>", token)
 	message := mail.NewSingleEmail(from, subject, to, plainTextContent, htmlContent)
 	client := sendgrid.NewSendClient(os.Getenv("SENDGRID_KEY"))
 	response, err := client.Send(message)
