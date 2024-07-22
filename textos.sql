@@ -1,7 +1,7 @@
-INSERT INTO "global_notes" ("note_date", "note") VALUES ('01/07/2024', '☀️ Sol em Câncer
-🌒 Lua em Touro
-Revisite seu passado de forma amorosa.
-Resumo do mês
+INSERT INTO "global_notes" ("note_date", "note") VALUES ('01/07/2024', '☀️ Sol em Câncer<br>
+🌒 Lua em Touro<bd>
+Revisite seu passado de forma amorosa.<br>
+Resumo do mês<br>
 O mês chega dia 2 com Netuno retrógrado em Peixes e a entrada de Mercúrio em Leão. Reflita sobre quanto tem meditado e realizado rituais de autocuidado. Ative a alegria da sua criança interna. Dia 5 a lua nova em Câncer estimula resgatar aquele sonho que estava esquecido. Dia 11 Vênus em Leão incentiva se olhar no espelho e repetir “Eu me amo e me aceito incondicionalmente exatamente do jeito que eu sou”. Se orgulhe de você! Dia 13, a lua crescente em Libra contribui para que você saiba qual é a melhor maneira de fazer o seu projeto se desenvolver. Dia 15 vem com uma grande conjunção entre Marte e Urano em Touro trazendo novas formas de economia e de consumo. Foque na prosperidade. Dia 20 Marte em Gêmeos incentiva a exploração de novos universos. Altere formas de agir e de se posicionar. No dia seguinte, a lua cheia em Capricórnio traz a chance de comemorar a sua colheita. Lembrando que quem nada planta, nada colhe. Dia 22 traz o início da temporada leonina repleta de generosidade e talento. Brilhe e expresse todas as suas potencialidades. Dia 25, Mercúrio em Virgem estimula sua capacidade de análise e discernimento. Dia 27, a lua minguante em Touro beneficia eliminar apegos desnecessários.
 Julho! Escolho cocriar uma jornada próspera. Me permito brilhar e me amar incondicionalmente.
 ');
@@ -98,11 +98,11 @@ Construa a sua caminhada valorizando e agradecendo cada fase da sua jornada.
 Marte em Gêmeos às 17h43
 Marte em Gêmeos é querer fazer tudo ao mesmo tempo e as vezes se perder ou gastar muita energia. Aproveite para colocar sua criatividade em prática e confiar no poder das suas ideias. Tire do papel seus projetos mais incríveis e se orgulhe desse passo importante.
 ');
-INSERT INTO "global_notes" ("note_date", "note") VALUES ('21/07/2024', '☀️ Sol em Câncer
-🌒 Lua cheia em 29º08 de Capricórnio às 7h17/8h44 lua em Aquário
-Lua fora de curso das 8h26 às 8h43: se tiver algo importante nesse período, faça com mais calma e atenção. 
-Não tenha medo de admitir tudo que estiver sentindo. Nomeie seus sentimentos e busque ferramentas para lidar com eles de forma elevada.
-Lua cheia em 29º08 de Capricórnio às 7h17
+INSERT INTO "global_notes" ("note_date", "note") VALUES ('21/07/2024', '☀️ Sol em Câncer<br>
+🌒 Lua cheia em 29º08 de Capricórnio às 7h17/8h44 lua em Aquário<br>
+Lua fora de curso das 8h26 às 8h43: se tiver algo importante nesse período, faça com mais calma e atenção. <br>
+Não tenha medo de admitir tudo que estiver sentindo. Nomeie seus sentimentos e busque ferramentas para lidar com eles de forma elevada.<br>
+Lua cheia em 29º08 de Capricórnio às 7h17<br>
 Olhe para tudo que você já intencionou e realizou. Para todas as vezes que você chegou no topo da montanha mais alta. Perceba quanto se orgulha de você e o que te estimula a crescer e avançar.
 ');
 INSERT INTO "global_notes" ("note_date", "note") VALUES ('22/07/2024', '☀️ Sol em Câncer/4h44 sol em Leão
